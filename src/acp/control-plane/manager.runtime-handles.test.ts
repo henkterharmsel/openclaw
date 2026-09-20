@@ -336,6 +336,7 @@ describe("AcpSessionManager runtime handles", () => {
         acpxRecordId: "record-1",
         backendSessionId: "acpx-session-1",
         agentSessionId: "agent-session-1",
+        sessionResumeSupported: true,
       })
       .mockResolvedValueOnce({
         sessionKey: "agent:codex:acp:session-1",
@@ -719,7 +720,7 @@ describe("AcpSessionManager runtime handles", () => {
     expect(persisted.currentMeta.identity).toEqual(sourceIdentity);
   });
 
-  it("prefers the persisted agent session id when reopening an ACP runtime after restart", async () => {
+  it("prefers the persisted ACP session id when reopening an ACP runtime after restart", async () => {
     const runtimeState = createRuntime();
     hoisted.requireAcpRuntimeBackendMock.mockReturnValue({
       id: "acpx",
@@ -759,7 +760,7 @@ describe("AcpSessionManager runtime handles", () => {
     expectRecordFields(mockCallArg(runtimeState.ensureSession), {
       sessionKey,
       agent: "gemini",
-      resumeSessionId: "gemini-sid-1",
+      resumeSessionId: "acpx-sid-1",
     });
   });
 
@@ -911,7 +912,7 @@ describe("AcpSessionManager runtime handles", () => {
     });
   });
 
-  it("does not resume persisted ACP identity for oneshot sessions after restart", async () => {
+  it("resumes persisted ACP identity for oneshot sessions after restart", async () => {
     const runtimeState = createRuntime();
     hoisted.requireAcpRuntimeBackendMock.mockReturnValue({
       id: "acpx",
@@ -931,6 +932,8 @@ describe("AcpSessionManager runtime handles", () => {
             state: "resolved",
             source: "status",
             acpxSessionId: "acpx-sid-oneshot",
+            sessionResumeSupported: true,
+            sessionResumeReady: true,
             lastUpdatedAt: Date.now(),
           },
         },
@@ -953,8 +956,8 @@ describe("AcpSessionManager runtime handles", () => {
       sessionKey,
       agent: "codex",
       mode: "oneshot",
+      resumeSessionId: "acpx-sid-oneshot",
     });
-    expect(ensureInput?.resumeSessionId).toBeUndefined();
   });
 
   it("falls back to a fresh ensure without reusing stale agent session ids", async () => {
@@ -1026,7 +1029,7 @@ describe("AcpSessionManager runtime handles", () => {
     expectRecordFields(mockCallArg(runtimeState.ensureSession), {
       sessionKey,
       agent: "codex",
-      resumeSessionId: "agent-sid-stale",
+      resumeSessionId: "acpx-sid-stale",
     });
     const retryInput = mockCallArg(runtimeState.ensureSession, 1);
     expect(retryInput.resumeSessionId).toBeUndefined();

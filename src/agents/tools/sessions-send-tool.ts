@@ -4,9 +4,9 @@
  * Sends messages to visible sessions, starts embedded runs, and optionally announces replies.
  */
 import crypto from "node:crypto";
-import { isRequesterParentOfBackgroundAcpSession } from "@openclaw/acp-core/session-interaction-mode";
 import { finiteSecondsToTimerSafeMilliseconds } from "@openclaw/normalization-core/number-coercion";
 import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { isAcpTurnActive } from "../../acp/control-plane/active-turns.js";
 import { readAcpSessionMetaForEntry } from "../../acp/runtime/session-meta-readonly.js";
 import { tryResolveLegacyCompatibilityAgentId } from "../../config/legacy.default-agent-owner.js";
 import type { SessionDeliveryGeneration } from "../../config/sessions/session-delivery-generation.types.js";
@@ -87,6 +87,7 @@ import {
 } from "./sessions-helpers.js";
 import { buildAgentToAgentMessageContext } from "./sessions-send-helpers.js";
 import { captureSessionsSendResumeCaller, resumeSessionsSendTask } from "./sessions-send-resume.js";
+import { resolveAcpSessionsSendRoute } from "./sessions-send-route.js";
 import { runSessionsSendA2AFlow } from "./sessions-send-tool.a2a.js";
 import { normalizeSessionsSendArguments } from "./sessions-send-tool.arguments.js";
 import { startSessionsSendAgentRun } from "./sessions-send-tool.delivery.js";
@@ -856,14 +857,26 @@ export function createSessionsSendTool(opts?: SessionsSendToolOptions): AnyAgent
               callGateway: gatewayCall,
             });
           }
+          const acpRoute = resolveAcpSessionsSendRoute({
+            entry: targetSessionEntry,
+            acpMeta: targetAcpMeta,
+            requesterSessionKey: effectiveRequesterKey,
+            targetSessionKey: targetSession.canonicalKey,
+            activeAcpTurn: isAcpTurnActive({
+              agentId: targetSession.agentId,
+              sessionKey: targetSession.canonicalKey,
+            }),
+          });
+          if (acpRoute.rejection) {
+            return jsonResult({
+              runId,
+              status: "error",
+              error: acpRoute.rejection,
+              sessionKey: displayKey,
+            });
+          }
           // ACP background tasks already report to their parent through task completion.
-          const targetSessionEntryWithAcp = targetSessionEntry
-            ? { ...targetSessionEntry, acp: targetAcpMeta }
-            : targetSessionEntry;
-          const skipTaskReplyFlow = isRequesterParentOfBackgroundAcpSession(
-            targetSessionEntryWithAcp,
-            effectiveRequesterKey,
-          );
+          const skipTaskReplyFlow = acpRoute.skipA2AFlow;
           // Child reports, registered tasks, and exact-incarnation grants own their completion.
           const replyMode =
             requesterIsSubagent || skipTaskReplyFlow || expectedSessionId
@@ -995,6 +1008,17 @@ export function createSessionsSendTool(opts?: SessionsSendToolOptions): AnyAgent
           };
           if (timeoutSeconds === 0) {
             startReplyFlow({ notifyRequesterOnWaitFailure: true });
+            return jsonResult({
+              runId,
+              status: "accepted",
+              sessionKey: displayKey,
+              targetDisposition: start.targetDisposition,
+              delivery,
+              ...watchField,
+            });
+          }
+
+          if (acpRoute.deferToTaskCompletion) {
             return jsonResult({
               runId,
               status: "accepted",
