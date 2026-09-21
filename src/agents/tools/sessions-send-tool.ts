@@ -37,7 +37,6 @@ import {
   normalizeAccountId,
   normalizeAgentId,
   normalizeAgentIdStrict,
-  toAgentStoreSessionKey,
 } from "../../routing/session-key.js";
 import { annotateInterSessionPromptText } from "../../sessions/input-provenance.js";
 import { deriveSessionChatTypeFromKey } from "../../sessions/session-chat-type-shared.js";
@@ -50,7 +49,7 @@ import { recordSessionParticipantBestEffort } from "../../sessions/session-parti
 import { registerSessionStateWatch } from "../../sessions/session-state-events.js";
 import { normalizeDeliveryContext } from "../../utils/delivery-context.shared.js";
 import { INTERNAL_MESSAGE_CHANNEL } from "../../utils/message-channel.js";
-import { listAgentIds, resolveSessionAgentId } from "../agent-scope.js";
+import { resolveSessionAgentId } from "../agent-scope.js";
 import { resolveNestedAgentLaneForSession } from "../lanes.js";
 import { runOutsidePreparedModelRuntimePluginGenerationScope } from "../prepared-model-runtime-generation-scope.js";
 import {
@@ -87,7 +86,11 @@ import {
 } from "./sessions-helpers.js";
 import { buildAgentToAgentMessageContext } from "./sessions-send-helpers.js";
 import { captureSessionsSendResumeCaller, resumeSessionsSendTask } from "./sessions-send-resume.js";
-import { resolveAcpSessionsSendRoute } from "./sessions-send-route.js";
+import {
+  isConfiguredAgentMainSessionKey,
+  resolveAcpSessionsSendRoute,
+  resolveConfiguredAgentMainSessionKey,
+} from "./sessions-send-route.js";
 import { runSessionsSendA2AFlow } from "./sessions-send-tool.a2a.js";
 import { normalizeSessionsSendArguments } from "./sessions-send-tool.arguments.js";
 import { startSessionsSendAgentRun } from "./sessions-send-tool.delivery.js";
@@ -98,45 +101,6 @@ const log = createSubsystemLogger("agents/sessions-send");
 
 type GatewayCaller = AgentToolGatewayRequestCaller;
 const NO_REPLY_MESSAGE = "No visible reply or pending announcement. Continue or retry if needed.";
-
-function resolveConfiguredAgentMainSessionKey(params: {
-  cfg: OpenClawConfig;
-  agentId: string;
-  mainKey: string;
-}): string | undefined {
-  const agentId = normalizeAgentId(params.agentId);
-  if (!listAgentIds(params.cfg).includes(agentId)) {
-    return undefined;
-  }
-  return toAgentStoreSessionKey({
-    agentId,
-    requestKey: "main",
-    mainKey: params.mainKey,
-  });
-}
-
-function isConfiguredAgentMainSessionKey(params: {
-  cfg: OpenClawConfig;
-  agentId?: string;
-  sessionKey: string;
-  mainKey: string;
-}): boolean {
-  if (isUnscopedSessionKeySentinel(params.sessionKey)) {
-    return false;
-  }
-  if (params.sessionKey === params.mainKey) {
-    return true;
-  }
-  const agentId = params.agentId ?? parseAgentSessionKey(params.sessionKey)?.agentId;
-  return agentId
-    ? params.sessionKey ===
-        resolveConfiguredAgentMainSessionKey({
-          cfg: params.cfg,
-          agentId,
-          mainKey: params.mainKey,
-        })
-    : false;
-}
 
 async function createConfiguredAgentMainSession(params: {
   cfg: OpenClawConfig;
