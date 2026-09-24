@@ -160,18 +160,18 @@ describe("AcpxRuntime session resume", () => {
   });
 
   it.each([
-    ['Session "resume-target" not found', true],
-    ["no rollout found for thread id resume-target", true],
-    ["Resource not found: resume-target", true],
+    ['Session "resume-target" not found', true, "resume-target"],
+    ["no rollout found for thread id resume-target", true, "resume-target"],
+    ["Resource not found: resume-target", true, "resume-target"],
     ["Resource not found: resume-target", false, "another-target"],
-    ["Resource not found", false],
-    ["Resource not found: another-target", false],
-    ['Session "another-target" not found', false],
-    ["Session not found", false],
-    ["Resource not found: workspace file", false],
-    ["session/load timed out", false],
-    ["authentication required", false],
-    ["connection reset", false],
+    ["Resource not found", false, "resume-target"],
+    ["Resource not found: another-target", false, "resume-target"],
+    ['Session "another-target" not found', false, "resume-target"],
+    ["Session not found", false, "resume-target"],
+    ["Resource not found: workspace file", false, "resume-target"],
+    ["session/load timed out", false, "resume-target"],
+    ["authentication required", false, "resume-target"],
+    ["connection reset", false, "resume-target"],
   ] as const)(
     "requires correlated missing-target evidence during reconnect: %s",
     async (reason, missing, outerId) => {
@@ -192,7 +192,7 @@ describe("AcpxRuntime session resume", () => {
       const error = {
         code: "ACP_TURN_FAILED",
         detailCode: "SESSION_RESUME_REQUIRED",
-        message: `Persistent ACP session ${outerId ?? "resume-target"} could not be resumed: ${reason}`,
+        message: `Persistent ACP session ${outerId} could not be resumed: ${reason}`,
         retryable: true,
       };
       vi.spyOn(delegate, "startTurn").mockReturnValue(
