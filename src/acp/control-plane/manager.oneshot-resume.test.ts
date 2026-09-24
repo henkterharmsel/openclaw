@@ -1,5 +1,5 @@
 /** Tests resume identity persistence and task delivery for completed ACP one-shot turns. */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   requireTaskByRunId,
   withAcpManagerTaskStateDir,
@@ -25,8 +25,10 @@ describe("AcpSessionManager one-shot resume completion", () => {
   it("clears prompt liveness before a completed one-shot task is delivered", async () => {
     await withAcpManagerTaskStateDir(async () => {
       const runtimeState = createRuntime();
+      const closeStarted = createDeferred();
       const releaseClose = createDeferred();
       runtimeState.close.mockImplementation(async () => {
+        closeStarted.resolve();
         await releaseClose.promise;
       });
       hoisted.requireAcpRuntimeBackendMock.mockReturnValue({
@@ -69,17 +71,15 @@ describe("AcpSessionManager one-shot resume completion", () => {
         requestId: "terminal-cleanup-acp-turn",
       });
 
-      await vi.waitFor(
-        () => {
-          expect(requireTaskByRunId("terminal-cleanup-acp-turn").status).toBe("succeeded");
-          expect(runtimeState.close).toHaveBeenCalledTimes(1);
-        },
-        { interval: 1 },
-      );
-      expect(isAcpTurnActive({ sessionKey: childSessionKey, agentId: "claude" })).toBe(false);
-
-      releaseClose.resolve();
-      await turn;
+      await closeStarted.promise;
+      try {
+        expect(requireTaskByRunId("terminal-cleanup-acp-turn").status).toBe("succeeded");
+        expect(runtimeState.close).toHaveBeenCalledTimes(1);
+        expect(isAcpTurnActive({ sessionKey: childSessionKey, agentId: "claude" })).toBe(false);
+      } finally {
+        releaseClose.resolve();
+        await turn;
+      }
     });
   }, 300_000);
 

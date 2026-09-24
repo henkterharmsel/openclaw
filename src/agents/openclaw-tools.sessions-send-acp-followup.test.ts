@@ -27,6 +27,12 @@ const { callGatewayMock, readAcpSessionMetaForEntryMock, TEST_CONFIG } = vi.hois
 vi.mock("../gateway/call.js", () => ({
   callGateway: (opts: unknown) => callGatewayMock(opts),
 }));
+vi.mock("../commands/agent.js", () => ({
+  agentCommandFromIngress: vi.fn(async () => ({
+    payloads: [{ text: "ANNOUNCE_SKIP", mediaUrl: null }],
+    meta: { durationMs: 1 },
+  })),
+}));
 vi.mock("../acp/runtime/session-meta-readonly.js", () => ({
   readAcpSessionMetaForEntry: (params: unknown) => readAcpSessionMetaForEntryMock(params),
 }));
@@ -38,32 +44,29 @@ vi.mock("../config/config.js", () => ({
 import "./test-helpers/fast-openclaw-tools-sessions.js";
 import { markAcpTurnActive } from "../acp/control-plane/active-turns.js";
 import { resetAcpActiveTurnsForTests } from "../acp/control-plane/active-turns.test-support.js";
-import { testing as agentStepTesting } from "./tools/agent-step.test-support.js";
+import { observeSessionSendContinuations } from "./openclaw-tools.sessions-timeout.test-support.js";
 import { createSessionsSendTool } from "./tools/sessions-send-tool.js";
 
 const tempDirs = useAutoCleanupTempDirTracker(afterEach);
 type GatewayCall = { method?: string; params?: Record<string, unknown> };
 let state: OpenClawTestState;
+let continuations: ReturnType<typeof observeSessionSendContinuations>;
 
 beforeEach(async () => {
+  continuations = observeSessionSendContinuations();
   state = await createOpenClawTestState({ scenario: "minimal" });
   resetGatewayWorkAdmission();
   resetAcpActiveTurnsForTests();
   callGatewayMock.mockReset();
   readAcpSessionMetaForEntryMock.mockReset();
-  agentStepTesting.setDepsForTest({
-    agentCommandFromIngress: async () => ({
-      payloads: [{ text: "ANNOUNCE_SKIP", mediaUrl: null }],
-      meta: { durationMs: 1 },
-    }),
-  });
 });
 afterEach(async () => {
-  await vi.waitFor(() => expect(getActiveGatewayRootWorkCount()).toBe(0));
+  await continuations.settle();
+  expect(getActiveGatewayRootWorkCount()).toBe(0);
+  continuations.restore();
   resetGatewayWorkAdmission();
   resetAcpActiveTurnsForTests();
   resetSystemEventsForTest();
-  agentStepTesting.setDepsForTest();
   await state.cleanup();
 });
 

@@ -265,7 +265,22 @@ export async function ensureManagerRuntimeHandle(params: {
     ensuredIdentity?.acpxRecordId &&
     identityForEnsure.acpxRecordId !== ensuredIdentity.acpxRecordId
   ) {
-    identityForEnsure = undefined;
+    const resumedSameSession =
+      mode === "oneshot" &&
+      persistedResumeSessionId &&
+      ensured.backend === backend.id &&
+      ensuredIdentity.acpxSessionId === persistedResumeSessionId;
+    // ACPX can replace its physical record while resuming the same protocol session.
+    // Retain only resume confirmation; all identifiers must come from the new handle.
+    identityForEnsure = resumedSameSession
+      ? {
+          state: "pending",
+          source: "ensure",
+          sessionResumeSupported: identityForEnsure.sessionResumeSupported,
+          sessionResumeReady: identityForEnsure.sessionResumeReady,
+          lastUpdatedAt: now,
+        }
+      : undefined;
   }
   const nextIdentity =
     mergeSessionIdentity({

@@ -1,5 +1,5 @@
 import type { AcpRuntime, AcpRuntimeHandle } from "@openclaw/acp-core/runtime/types";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   reconcileManagerRuntimeSessionIdentifiers,
   resolveOneShotResumeIdentity,
@@ -24,7 +24,12 @@ const meta: SessionAcpMeta = {
 };
 
 describe("manager identity reconciliation", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("bounds a runtime status refresh", async () => {
+    vi.useFakeTimers();
     let statusSignal: AbortSignal | undefined;
     const runtime = {
       getStatus: vi.fn(
@@ -36,7 +41,7 @@ describe("manager identity reconciliation", () => {
     } as unknown as AcpRuntime;
     const writeSessionMeta = vi.fn();
 
-    const result = await reconcileManagerRuntimeSessionIdentifiers({
+    const reconciliation = reconcileManagerRuntimeSessionIdentifiers({
       cfg: {},
       sessionKey: handle.sessionKey,
       agentId: "claude",
@@ -44,12 +49,17 @@ describe("manager identity reconciliation", () => {
       handle,
       meta,
       failOnStatusError: false,
-      statusTimeoutMs: 1,
+      statusTimeoutMs: 1_000,
       setCachedHandle: vi.fn(),
       writeSessionMeta,
     });
 
-    expect(result).toMatchObject({ handle, meta });
+    await vi.advanceTimersByTimeAsync(999);
+    expect(statusSignal?.aborted).toBe(false);
+    expect(writeSessionMeta).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(await reconciliation).toMatchObject({ handle, meta });
     expect(statusSignal?.aborted).toBe(true);
     expect(writeSessionMeta).not.toHaveBeenCalled();
   });

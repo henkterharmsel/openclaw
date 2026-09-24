@@ -516,31 +516,24 @@ export async function runManagerTurn(params: {
               sessionResumeReady: true,
               lastUpdatedAt: resumeReadyAt,
             };
+            const resumeReadyMeta = (current: SessionAcpMeta): SessionAcpMeta => ({
+              ...current,
+              identity: resumeReadyIdentity,
+              lastActivityAt: resumeReadyAt,
+            });
             await params.writeSessionMeta({
               cfg: input.cfg,
               sessionKey,
               agentId,
               isCurrentActor: params.isCurrentActor,
               failOnError: true,
-              mutate: (current, entry) => {
-                if (!params.isCurrentActor() || !entry || !current) {
-                  return undefined;
-                }
-                return {
-                  ...current,
-                  identity: resumeReadyIdentity,
-                  lastActivityAt: resumeReadyAt,
-                };
-              },
+              mutate: (current, entry) =>
+                params.isCurrentActor() && entry && current ? resumeReadyMeta(current) : undefined,
             });
             if (!params.isCurrentActor()) {
               throw createSupersededActorError(sessionKey);
             }
-            meta = {
-              ...meta,
-              identity: resumeReadyIdentity,
-              lastActivityAt: resumeReadyAt,
-            };
+            meta = resumeReadyMeta(meta);
           }
           releaseActiveTurn?.();
           params.recordTurnCompletion({

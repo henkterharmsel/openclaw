@@ -1,13 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetGatewayWorkAdmission } from "../process/gateway-work-admission.js";
 import { finalizeTaskRecordByRunId, getTaskById } from "./task-registry.js";
-import {
-  resetTaskRegistryMaintenanceRuntimeForTests,
-  runTaskRegistryMaintenance,
-} from "./task-registry.maintenance.js";
+import { runTaskRegistryMaintenance } from "./task-registry.maintenance.js";
 import {
   configureTaskRegistryMaintenanceRuntimeForTest,
   createAcpSessionStoreEntry,
+  resetTaskRegistryMaintenanceMocks,
 } from "./task-registry.maintenance.test-support.js";
 import { createTaskFixture, withTaskRegistryTempDir } from "./task-registry.test-support.js";
 import {
@@ -18,12 +16,12 @@ import {
 describe("task-registry ACP cleanup resume retention", () => {
   beforeEach(() => {
     resetGatewayWorkAdmission();
-    resetTaskRegistryMaintenanceRuntimeForTests();
+    resetTaskRegistryMaintenanceMocks();
   });
 
   afterEach(() => {
     resetGatewayWorkAdmission();
-    resetTaskRegistryMaintenanceRuntimeForTests();
+    resetTaskRegistryMaintenanceMocks();
     resetTaskRegistryForTests({ persist: false });
     resetTaskFlowRegistryForTests({ persist: false });
   });

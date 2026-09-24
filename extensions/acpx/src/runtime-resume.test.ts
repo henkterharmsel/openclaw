@@ -174,7 +174,7 @@ describe("AcpxRuntime session resume", () => {
     ["connection reset", false],
   ] as const)(
     "requires correlated missing-target evidence during reconnect: %s",
-    async (reason, missing, outerId = "resume-target") => {
+    async (reason, missing, outerId) => {
       const { runtime, delegate } = makeRuntime(makeEmptySessionStore());
       vi.spyOn(delegate, "ensureSession").mockResolvedValue({
         sessionKey: "agent:main:acp:resumed-one-shot",
@@ -192,7 +192,7 @@ describe("AcpxRuntime session resume", () => {
       const error = {
         code: "ACP_TURN_FAILED",
         detailCode: "SESSION_RESUME_REQUIRED",
-        message: `Persistent ACP session ${outerId} could not be resumed: ${reason}`,
+        message: `Persistent ACP session ${outerId ?? "resume-target"} could not be resumed: ${reason}`,
         retryable: true,
       };
       vi.spyOn(delegate, "startTurn").mockReturnValue(
